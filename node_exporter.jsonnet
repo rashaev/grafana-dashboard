@@ -2,6 +2,7 @@ local grafana = import 'grafonnet/grafana.libsonnet';
 local dashboard = grafana.dashboard;
 local template = grafana.template;
 local graphPanel = grafana.graphPanel;
+local row = grafana.row;
 local statPanel = grafana.statPanel;
 local barGaugePanel = grafana.barGaugePanel;
 local prometheus = grafana.prometheus;
@@ -95,37 +96,50 @@ grafana.dashboard.new(
   )
 .addPanel(
     barGaugePanel.new(
-      unit='percent (0-100)',
-      title=""
+      unit='percent',
+      title="",
+      max=100,
+      decimals=1,
+      displayMode='lcd',
+      orientation='horizontal',
+      reducerFunction='last',
+      thresholds=[
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+      ],
     )
-    .addTarget(
+    .addTargets([
       prometheus.target(
         '100 - (avg(irate(node_cpu_seconds_total{instance=~"$HOST",mode="idle"}[5m])) * 100)',
         datasource='$DATASOURCE',
         legendFormat='CPU Busy'
-      )
-    )
-    .addTarget(
+      ),
       prometheus.target(
         '(1 - (node_memory_MemAvailable_bytes{instance=~"$HOST"} / (node_memory_MemTotal_bytes{instance=~"$HOST"})))* 100',
         datasource='$DATASOURCE',
         legendFormat='Used RAM Memory'
-      )
-    )
-    .addTarget(
+      ),
       prometheus.target(
         '(node_filesystem_size_bytes{instance=~"$HOST",fstype=~"ext.*|xfs",mountpoint="/"}-node_filesystem_free_bytes{instance=~"$HOST",fstype=~"ext.*|xfs",mountpoint="/"})*100 /(node_filesystem_avail_bytes {instance=~"$HOST",fstype=~"ext.*|xfs",mountpoint="/"}+(node_filesystem_size_bytes{instance=~"$HOST",fstype=~"ext.*|xfs",mountpoint="/"}-node_filesystem_free_bytes{instance=~"$HOST",fstype=~"ext.*|xfs",mountpoint="/"}))',
         datasource='$DATASOURCE',
         legendFormat='Used Mount (/)'
-      )
-    )
-    .addTarget(
+      ),
       prometheus.target(
         '(1 - ((node_memory_SwapFree_bytes{instance=~"$HOST"} + 1)/ (node_memory_SwapTotal_bytes{instance=~"$HOST"} + 1))) * 100',
         datasource='$DATASOURCE',
         legendFormat='Used SWAP'
       )
-    ),  gridPos={"x": 2,"y": 0, "h": 6,"w": 3}
+    ]),  gridPos={"x": 2,"y": 0, "h": 6,"w": 3}
   )
 
   .addPanel(
@@ -141,29 +155,111 @@ grafana.dashboard.new(
       legend_current=true,
       legend_total=false,
       legend_avg=false,
-      legend_rightSide=true,
+      legend_rightSide=false,
       legend_alignAsTable=true,
       legend_sideWidth=250,
     )
-    .addTarget(
+    .addTargets([
       prometheus.target(
         'node_load1{instance="$HOST",job="node_exporter"}',
         datasource='$DATASOURCE',
         legendFormat='1m'
-      )
-    )
-    .addTarget(
+      ),
       prometheus.target(
         'node_load5{instance="$HOST",job="node_exporter"}',
         datasource='$DATASOURCE',
         legendFormat='5m'
-      )
-    )
-    .addTarget(
+      ),
       prometheus.target(
         'node_load15{instance="$HOST",job="node_exporter"}',
         datasource='$DATASOURCE',
         legendFormat='15m'
       )
-    ),  gridPos={"x": 0,"y": 7, "h": 6,"w": 10}
+    ]),  gridPos={"x": 0,"y": 9, "h": 9,"w": 8}
+  )
+
+  .addPanel(
+    graphPanel.new(
+      title='CPU',
+      format='percent',
+      fill=0,
+      min=0,
+      legend_values=true,
+      legend_min=false,
+      legend_max=false,
+      legend_current=false,
+      legend_total=false,
+      legend_avg=false,
+      legend_rightSide=false,
+      legend_alignAsTable=false,
+      legend_sideWidth=250,
+    )
+    .addTargets([
+      prometheus.target(
+        'avg(irate(node_cpu_seconds_total{instance=~"$HOST",mode="system"}[5m])) by (instance) *100',
+        datasource='$DATASOURCE',
+        legendFormat='system'
+      ),
+      prometheus.target(
+        'avg(irate(node_cpu_seconds_total{instance=~"$HOST",mode="user"}[5m])) by (instance) *100',
+        datasource='$DATASOURCE',
+        legendFormat='user'
+      ),
+      prometheus.target(
+        'avg(irate(node_cpu_seconds_total{instance=~"$HOST",mode="idle"}[5m])) by (instance) *100',
+        datasource='$DATASOURCE',
+        legendFormat='idle'
+      ),
+      prometheus.target(
+        'avg(irate(node_cpu_seconds_total{instance=~"$HOST",mode="iowait"}[5m])) by (instance) *100',
+        datasource='$DATASOURCE',
+        legendFormat='iowait'
+      )
+    ]),  gridPos={"x": 8,"y": 8, "h": 9,"w": 8}
+  )
+
+  .addPanel(
+    graphPanel.new(
+      title='Memory',
+      format='bytes',
+      fill=5,
+      min=0,
+      legend_values=true,
+      legend_min=false,
+      legend_max=false,
+      legend_current=false,
+      legend_total=false,
+      legend_avg=false,
+      legend_rightSide=false,
+      legend_alignAsTable=false,
+      legend_sideWidth=250,
+    )
+  
+    .addTargets([
+      prometheus.target(
+        'node_memory_MemTotal_bytes{instance=~"$HOST"}',
+        datasource='$DATASOURCE',
+        legendFormat='total'
+      ),
+      prometheus.target(
+        'node_memory_MemTotal_bytes{instance=~"$HOST"} - node_memory_MemFree_bytes{instance=~"$HOST"} - node_memory_Buffers_bytes{instance=~"$HOST"} - node_memory_Cached_bytes{instance=~"$HOST"} - node_memory_SReclaimable_bytes{instance=~"$HOST"}',
+        datasource='$DATASOURCE',
+        legendFormat='used'
+      ),
+      prometheus.target(
+        'node_memory_Shmem_bytes{instance=~"$HOST"}',
+        datasource='$DATASOURCE',
+        legendFormat='shared'
+      ),
+      prometheus.target(
+        'node_memory_Buffers_bytes{instance=~"$HOST"} + node_memory_Cached_bytes{instance=~"$HOST"} + node_memory_SReclaimable_bytes{instance=~"$HOST"}',
+        datasource='$DATASOURCE',
+        legendFormat='buff/cache'
+      ),
+        prometheus.target(
+        'node_memory_MemFree_bytes{instance=~"$HOST"}',
+        datasource='$DATASOURCE',
+        legendFormat='free'
+      )
+    ]),  gridPos={"x": 24,"y": 8, "h": 9,"w": 8}
   )
